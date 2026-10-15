@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>点餐</title>
+<style>
+body{font-family:sans-serif;margin:0;padding:12px 12px 130px}
+.item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #eee}
+.btn{width:28px;height:28px;border:none;border-radius:50%;background:#07c160;color:#fff;font-size:18px}
+.btn.minus{background:#ccc}
+.num{display:inline-block;width:28px;text-align:center}
+.bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #eee;padding:12px;display:flex;justify-content:space-between;align-items:center}
+.submit{background:#07c160;color:#fff;border:none;border-radius:20px;padding:10px 24px}
+
+.tabs{display:flex;border-bottom:1px solid #eee;margin-bottom:8px}
+.tab{flex:1;text-align:center;padding:10px;color:#666}
+.tab.on{color:#07c160;border-bottom:2px solid #07c160}
+.order{border:1px solid #eee;border-radius:8px;padding:10px;margin-bottom:10px}
+.order small{color:#999}
+.cats{display:flex;gap:8px;padding:8px 0;overflow-x:auto}
+.cat{padding:6px 14px;border-radius:16px;background:#f2f2f2;color:#666;white-space:nowrap}
+.cat.on{background:#07c160;color:#fff}
+.info{position:fixed;bottom:62px;left:0;right:0;background:#fafafa;border-top:1px solid #eee;padding:8px 12px;display:flex;gap:8px}
+.info input{padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;min-width:0}
+#table{width:70px}
+#remark{flex:1}
+.st{float:right;padding:2px 12px;border-radius:12px;background:#ff9500;color:#fff;font-size:13px}
+.st.done{background:#07c160}
+.del{float:right;margin-left:8px;padding:2px 12px;border-radius:12px;background:#eee;color:#e64340;font-size:13px}
+.clear{text-align:right;margin-bottom:8px}
+.clear span{padding:4px 14px;border-radius:12px;background:#eee;color:#e64340;font-size:13px}
+.dish{display:flex;align-items:center}
+.pic{width:90px;height:auto;min-height:56px;border-radius:8px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:32px;margin-right:12px;flex-shrink:0;overflow:hidden}
+.pic img{width:100%;height:auto;display:block}
+.search{width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #ddd;border-radius:18px;font-size:14px;margin:4px 0}
+.mask{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);z-index:99;align-items:center;justify-content:center}
+.mask img{max-width:92%;max-height:88%;border-radius:8px}
+</style>
+</head>
+<body>
+<div class="tabs">
+  <div class="tab on" id="t1" onclick="show('menu')">点餐</div>
+  <div class="tab" id="t2" onclick="show('orders')">我的订单</div>
+</div>
+<div id="menu">
+  <input class="search" id="search" placeholder="搜索菜品" oninput="render()">
+  <div class="cats" id="cats"></div>
+  <div id="list"></div>
+  <div class="info">
+  <input id="table" placeholder="桌号">
+  <input id="remark" placeholder="备注（如：不要辣）">
+</div>
+  <div class="bar">
+    <div>合计：¥<span id="total">0</span></div>
+    <button class="submit" onclick="submitOrder()">提交订单</button>
+  </div>
+</div>
+<div id="orders" style="display:none"></div>
+<div class="mask" id="mask" onclick="closeBig()"><img id="big"></div>
+<script>
+const dishes = [
+  { id: 1, name: "宫保鸡丁", price: 28, cat: "热菜", img: "gongbao.jpg" },
+  { id: 2, name: "鱼香肉丝", price: 26, cat: "热菜", img: "yuxiang.jpeg" },
+  { id: 3, name: "麻婆豆腐", price: 18, cat: "热菜", img: "mapo.jpg" },
+  { id: 4, name: "米饭", price: 2, cat: "主食", img: "mifan.svg" },
+  { id: 5, name: "拍黄瓜", price: 10, cat: "凉菜", img: "🥒" }
+];
+let curCat = "全部";
+const cart={};
+function render(){
+  const cats=["全部",...new Set(dishes.map(d=>d.cat))];
+document.getElementById("cats").innerHTML=cats.map(c=>
+`<div class="cat${c===curCat?" on":""}" onclick="setCat('${c}')">${c}</div>`).join("");
+const kw = document.getElementById("search").value.trim();
+const shown = dishes.filter(d => (curCat === "全部" || d.cat === curCat) && d.name.includes(kw));
+document.getElementById("list").innerHTML=shown.map(d=>`
+    <div class="item">
+<div class="dish"><div class="pic">${pic(d)}</div><div>${d.name}<br><small>¥${d.price}</small></div></div>
+      <div>
+        <button class="btn minus" onclick="change(${d.id},-1)">-</button>
+        <span class="num">${cart[d.id]||0}</span>
+        <button class="btn" onclick="change(${d.id},1)">+</button>
+      </div>
+    </div>`).join("");
+  const total=dishes.reduce((s,d)=>s+d.price*(cart[d.id]||0),0);
+  document.getElementById("total").textContent=total;
+  if(!shown.length)document.getElementById("list").innerHTML="<p style='text-align:center;color:#999'>没有找到相关菜品</p>";
+}
+function setCat(c){
+  curCat=c;
+  render();
+}
+function change(id,n){
+  cart[id]=Math.max(0,(cart[id]||0)+n);
+  render();
+}
+
+function submitOrder(){
+  const items=dishes.filter(d=>cart[d.id]>0);
+  if(!items.length){alert("还没点菜哦");return;}
+  const orders=JSON.parse(localStorage.getItem("orders")||"[]");
+  const sum = items.reduce((s, d) => s + d.price * cart[d.id], 0);
+const table = document.getElementById("table").value.trim();
+const remark = document.getElementById("remark").value.trim();
+if (!table) { alert("请填写桌号"); return; }
+orders.push({ time: new Date().toLocaleString(), items: items.map(d => d.name + "x" + cart[d.id]), total: sum, table: table, remark: remark , status: "待制作"});
+  localStorage.setItem("orders",JSON.stringify(orders));
+  alert("下单成功！");
+  document.getElementById("remark").value="";
+  for(const k in cart)delete cart[k];
+  render();
+}
+function show(page){
+  document.getElementById("menu").style.display=page==="menu"?"block":"none";
+  document.getElementById("orders").style.display=page==="orders"?"block":"none";
+  document.getElementById("t1").className="tab"+(page==="menu"?" on":"");
+  document.getElementById("t2").className="tab"+(page==="orders"?" on":"");
+  if(page==="orders")renderOrders();
+}
+
+function renderOrders() {
+  const all = JSON.parse(localStorage.getItem("orders") || "[]");
+  const list = all.map((o, i) => ({ o, i })).reverse();
+    document.getElementById("orders").innerHTML=list.length
+  ? "<div class='clear'><span onclick='clearOrders()'>清空全部</span></div>"+list.map(({o,i})=>`
+      <div class="order">
+        <small>${o.time}</small>${o.table?" <b>桌号 "+o.table+"</b>":""}<br>
+        ${o.items.join("、")}<br>
+        ${o.remark?"<small>备注："+o.remark+"</small><br>":""}
+        <b>合计：¥${o.total!==undefined?o.total:"-"}</b>
+        <span class="st ${o.status==="已完成"?"done":""}" onclick="toggleStatus(${i})">${o.status||"待制作"}</span>
+                <span class="del" onclick="delOrder(${i})">删除</span>
+      </div>`).join("") :
+    "<p style='text-align:center;color:#999'>还没有订单</p>";
+} 
+function toggleStatus(i) {
+  const all = JSON.parse(localStorage.getItem("orders") || "[]");
+  all[i].status = all[i].status === "已完成" ? "待制作" : "已完成";
+  localStorage.setItem("orders", JSON.stringify(all));
+  renderOrders();
+}
+function delOrder(i) {
+  if (!confirm("确定删除这张订单吗？")) return;
+  const all = JSON.parse(localStorage.getItem("orders") || "[]");
+  all.splice(i, 1);
+  localStorage.setItem("orders", JSON.stringify(all));
+  renderOrders();
+}
+function clearOrders() {
+  if (!confirm("确定清空所有订单吗？此操作无法恢复")) return;
+  localStorage.removeItem("orders");
+  renderOrders();
+}
+function pic(d) {
+  return d.img && d.img.includes(".") ? `<img src="${d.img}" onclick="showBig('${d.img}')">` : (d.img || "🍽️");
+}
+function showBig(src){
+  document.getElementById("big").src=src;
+  document.getElementById("mask").style.display="flex";
+}
+function closeBig(){
+  document.getElementById("mask").style.display="none";
+}
+render();
+</script>
+</body>
+</html>
